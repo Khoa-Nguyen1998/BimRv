@@ -11,7 +11,7 @@ namespace DEMO {
 		std::string name;
 		double x, y, z;
 
-		Point(std::string _name, double x = 0.0, double y = 0.0, double z = 0.0) : x(x), y(y), z(z) {}
+		Point(std::string _name, double x = 0.0, double y = 0.0, double z = 0.0) :name(_name), x(x), y(y), z(z) {}
 	};
 
 	// Define an Edge class, which is a collection of Points.

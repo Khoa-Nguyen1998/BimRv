@@ -42,6 +42,9 @@
 #include <Ge/GeVector3d.h>
 #include <Ge/GePoint3d.h>
 #include <nlohmann/json.hpp>
+#include <filesystem>
+#include <iostream>
+#include <string>
 using json = nlohmann::json;
 
 class MyServices : public ExSystemServices, public OdExBimHostAppServices
@@ -313,11 +316,37 @@ void ExportJsonFile(OdString pathOut) {
 	}
 }
 
+std::string getParentFolderOfExecutable() {
+	char path[MAX_PATH];
+
+	// Get the path of the executable file
+	GetModuleFileNameA(nullptr, path, MAX_PATH);
+
+	// Convert to std::string and find the last backslash
+	std::string exePath(path);
+	size_t lastBackslash = exePath.find_last_of("\\/");
+
+	// Remove the executable name to get the parent folder path
+	return exePath.substr(0, lastBackslash);
+}
+
+std::string getParentPath(const std::string& path) {
+	// Find the last directory separator
+	size_t pos = path.find_last_of("/\\");
+	if (pos == std::string::npos) {
+		return ""; // No parent path
+	}
+	return path.substr(0, pos); // Return the substring up to the last separator
+}
+
 int main()
 {
 	std::string pathIn, pathOut;
-	std::cout << "Please enter the path to the Revit file: ";
-	std::cin >> pathIn;
+	//std::cout << "Please enter the path to the Revit file: ";
+	//std::cin >> pathIn;
+	std::string parentFolder = getParentFolderOfExecutable();
+	parentFolder = getParentPath(parentFolder);
+	pathIn = parentFolder + "\\demo.rvt";
 	std::cout << "The path to the Revit file: " + pathIn;
 
 	pathOut = pathIn;
@@ -328,6 +357,10 @@ int main()
 	}
 
 	std::cout << "\nThe path to the JSON output file: " + pathOut + "\n";
+
+	std::cout << "Select element id to export: ";
+	OdInt32 id;
+	std::cin >> id;
 
 	OdString inFile(pathIn.c_str());
 	OdString outFile(pathOut.c_str());
@@ -345,7 +378,6 @@ int main()
 
 		// Create a BimRv database and fills it with input file content
 		OdBmDatabasePtr pDb = svcs.readFile(inFile);
-		OdInt32 id = 179955;
 
 		DEMO::Model model = GetDataGeometryJson(pDb, id);
 
