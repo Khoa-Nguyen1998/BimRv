@@ -1,0 +1,4 @@
+﻿C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(531,5): warning MSB8028: The intermediate directory (BmJsonExportEx.dir\) contains files shared from another project (BmJsonExportEx.vcxproj).  This can lead to incorrect clean and rebuild behavior.
+  App.cpp
+MSVCRT.lib(exe_main.obj) : error LNK2019: unresolved external symbol main referenced in function "int __cdecl __scrt_common_main_seh(void)" (?__scrt_common_main_seh@@YAHXZ)
+..\..\..\..\..\exe\vc16_amd64dll\BmJsonExportEx.exe : fatal error LNK1120: 1 unresolved externals
