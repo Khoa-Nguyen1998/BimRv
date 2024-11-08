@@ -54,7 +54,7 @@ protected:
 
 // Function to convert Model data to JSON
 json pointToJson(const DEMO::Point& point) {
-	return { {"x", point.x}, {"y", point.y}, {"z", point.z} };
+	return { {"name",point.name}, {"x", point.x}, {"y", point.y}, {"z", point.z} };
 }
 
 json edgeToJson(const DEMO::Edge& edge) {
@@ -62,7 +62,10 @@ json edgeToJson(const DEMO::Edge& edge) {
 	for (const auto& point : edge.points) {
 		edgeJson.push_back(pointToJson(point));
 	}
-	return edgeJson;
+	return{
+		{"name",edge.name},
+		{"points", edgeJson}
+	};
 }
 
 json edgeLoopToJson(const DEMO::EdgeLoop& edgeLoop) {
@@ -70,15 +73,25 @@ json edgeLoopToJson(const DEMO::EdgeLoop& edgeLoop) {
 	for (const auto& edge : edgeLoop.edges) {
 		edgeLoopJson.push_back(edgeToJson(edge));
 	}
-	return edgeLoopJson;
+	return{
+		{"name",edgeLoop.name},
+		{"edgeloop",	edgeLoopJson}
+	};
 }
 
-json faceToJson(const DEMO::Face& face) {
+json edgeloopsToJson(const std::vector< DEMO::EdgeLoop>& edgeLoops) {
 	json faceJson = json::array();
-	for (const auto& edgeLoop : face.edgeLoops) {
+	for (const auto& edgeLoop : edgeLoops) {
 		faceJson.push_back(edgeLoopToJson(edgeLoop));
 	}
 	return faceJson;
+}
+
+json faceToJson(const DEMO::Face& face) {
+	return {
+		{"name",face.name},
+		{"edgeLoops",edgeloopsToJson(face.edgeLoops)}
+	};
 }
 
 json geometryToJson(const DEMO::Geometry& geometry) {
@@ -116,8 +129,9 @@ void writeModelToJSONFile(DEMO::Model model, OdString  filename) {
 
 #pragma endregion json
 
-void printBRepGeometry(const OdBmGeometryPtr& pGeometry)
+std::vector<DEMO::Face> printBRepGeometry(const OdBmGeometryPtr& pGeometry)
 {
+	std::vector<DEMO::Face>facesJson;
 	OdString message;
 	// Get faces
 	OdBmFacePtrArray faceNodes;
@@ -128,9 +142,12 @@ void printBRepGeometry(const OdBmGeometryPtr& pGeometry)
 	int faceNum = 0;
 	for (OdBmFacePtrArray::const_iterator faceIt = faceNodes.begin(); faceIt != faceNodes.end(); ++faceIt)
 	{
-		message.format(L"      Face %i", faceNum);
+		DEMO::Face faceJson;
 
+		message.format(L"      Face %i", faceNum);
 		faceNum++;
+		faceJson.index = faceNum;
+		faceJson.name = "Face " + std::to_string(faceNum);
 		// Get first EdgeLoop of a face
 		OdBmFacePtr pFace = *faceIt;
 
@@ -146,6 +163,11 @@ void printBRepGeometry(const OdBmGeometryPtr& pGeometry)
 
 			// Get first edge in loop
 			OdBmGEdgeBase* pNext = pNextEdgeLoop->getNext();
+			DEMO::EdgeLoop edgeLoopJson;
+			edgeLoopJson.name = "edgeloop";
+
+			std::vector<DEMO::Edge>edgesJson;
+
 			int edgeNum = 0;
 			while (!pNext->isLoop())
 			{
@@ -172,8 +194,16 @@ void printBRepGeometry(const OdBmGeometryPtr& pGeometry)
 				// Get start and end points of the Edge
 				OdGePoint3d ptStart, ptEnd;
 				pGEdge->getFirstAndLastEdgeGePnt(ptStart, false);
-				pGEdge->getFirstAndLastEdgeGePnt(ptStart, false);
 				pGEdge->getFirstAndLastEdgeGePnt(ptEnd, true);
+
+				DEMO::Edge edgeJson;
+				edgeJson.name = "edge";
+				DEMO::Point startPJson("start", ptStart.x, ptStart.y, ptStart.z);
+				DEMO::Point endPJson("end", ptEnd.x, ptEnd.y, ptEnd.z);
+				edgeJson.points.push_back(startPJson);
+				edgeJson.points.push_back(endPJson);
+				edgeLoopJson.edges.push_back(edgeJson);
+
 				if (bForvardDir)
 					message.format(L"          Edge %i  points: [%f , %f , %f], [%f , %f , %f]", edgeNum++, ptStart.x, ptStart.y, ptStart.z, ptEnd.x, ptEnd.y, ptEnd.z);
 				else
@@ -194,24 +224,34 @@ void printBRepGeometry(const OdBmGeometryPtr& pGeometry)
 			}//while (!pNext->isLoop())
 			loopNum++;
 			pNextEdgeLoop = pNextEdgeLoop->getNextLoop();
+			faceJson.edgeLoops.push_back(edgeLoopJson);
 		}//while (!pNextEdgeLoop.isNull())
+
+		facesJson.push_back(faceJson);
 	}//for (OdBmFacePtrArray::iterator faceIt = faceNodes.begin(); faceIt != faceNodes.end(); ++faceIt){}
+	return facesJson;
 }
 
-void dumpGGroup(OdBmGNodePtrArray& nodes) {
+DEMO::Geometry dumpGGroup(OdBmGNodePtrArray& nodes) {
+	DEMO::Geometry geometry;
 	for (OdBmGNodePtr node : nodes)
 	{
 		if (node->isA() == OdBmGeometry::desc()) {
 			const OdBmGeometry* pGeometry = dynamic_cast<const OdBmGeometry*>(node.get());
-			printBRepGeometry(pGeometry);
+			std::vector<DEMO::Face>faceJsons = printBRepGeometry(pGeometry);
+			for (const auto& face : faceJsons) {
+				geometry.faces.push_back(face);
+			}
 		}//if (nodes[0]->isA() == OdBmGeometry::desc())
 		else if ((node->isA() == OdBmGGroup::desc()) || (node->isA() == OdBmGFilter::desc())) {
 			const OdBmGGroup* pGroup = dynamic_cast<const OdBmGGroup*>(node.get());
 			OdBmGNodePtrArray nodes;
 			pGroup->getAllSubNodes(nodes);
-			dumpGGroup(nodes);
+			geometry = dumpGGroup(nodes);
 		}//if (nodes[0]->isA() == OdBmGeometry::desc())
 	}//for (OdBmGNodePtrArray::const_iterator it = nodes.begin(); it != nodes.end(); ++it)
+
+	return geometry;
 }
 
 DEMO::Model GetDataGeometryJson(OdBmDatabasePtr pDb, OdInt32 id) {
@@ -220,25 +260,30 @@ DEMO::Model GetDataGeometryJson(OdBmDatabasePtr pDb, OdInt32 id) {
 	try
 	{
 		OdDbHandle handleOneObj(id);
-		if (handleOneObj.isNull() != false) {
-			OdBmElementPtr pElement = pDb->getObjectId(handleOneObj).safeOpenObject();
+		//if (handleOneObj.isNull() != false) {
+		OdBmElementPtr pElement = pDb->getObjectId(handleOneObj).safeOpenObject();
 
-			DEMO::Element elemJson(1, "khoa");
-			model.elements.push_back(elemJson);
+		OdBmObjectId cateId = pElement->getHeaderCategoryId();
+		OdBmElementPtr pCate = cateId.safeOpenObject();
+		OdString cateName = pCate->getElementName();
+		int intValue = static_cast<int>(id);
+		std::string h = std::string(cateName);
+		DEMO::Element elemJson(intValue, h);
 
-			//_____Get object's geometry_____//
-			OdBmObjectPtr pGeom = pElement->getGeometry();
-			if (pGeom->isA() == OdBmGElement::desc())
-			{
-				OdBmGElement* pGElem = dynamic_cast<OdBmGElement*>(pGeom.get());
+		//_____Get object's geometry_____//
+		OdBmObjectPtr pGeom = pElement->getGeometry();
+		if (pGeom->isA() == OdBmGElement::desc())
+		{
+			OdBmGElement* pGElem = dynamic_cast<OdBmGElement*>(pGeom.get());
 
-				//Get nodes
-				OdBmGNodePtrArray nodes;
-				pGElem->getAllSubNodes(nodes);
+			//Get nodes
+			OdBmGNodePtrArray nodes;
+			pGElem->getAllSubNodes(nodes);
 
-				dumpGGroup(nodes);
-			}
+			elemJson.geometry = dumpGGroup(nodes);
 		}
+		//	}
+		model.elements.push_back(elemJson);
 	}
 	catch (std::exception)
 	{
@@ -300,7 +345,7 @@ int main()
 
 		// Create a BimRv database and fills it with input file content
 		OdBmDatabasePtr pDb = svcs.readFile(inFile);
-		OdInt32 id = 179890;
+		OdInt32 id = 179955;
 
 		DEMO::Model model = GetDataGeometryJson(pDb, id);
 

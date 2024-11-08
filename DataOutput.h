@@ -8,14 +8,16 @@ namespace DEMO {
 	// Define a Point class to represent a 3D point with x, y, z coordinates.
 	class Point {
 	public:
+		std::string name;
 		double x, y, z;
 
-		Point(double x = 0.0, double y = 0.0, double z = 0.0) : x(x), y(y), z(z) {}
+		Point(std::string _name, double x = 0.0, double y = 0.0, double z = 0.0) : x(x), y(y), z(z) {}
 	};
 
 	// Define an Edge class, which is a collection of Points.
 	class Edge {
 	public:
+		std::string name;
 		std::vector<Point> points;
 
 		// Constructor to initialize an empty list of points
@@ -25,6 +27,7 @@ namespace DEMO {
 	// Define an EdgeLoop class, which is a collection of Edges.
 	class EdgeLoop {
 	public:
+		std::string name;
 		std::vector<Edge> edges;
 
 		// Constructor to initialize an empty list of edges
@@ -34,6 +37,8 @@ namespace DEMO {
 	// Define a Face class, which is a collection of EdgeLoops.
 	class Face {
 	public:
+		int index;
+		std::string name;
 		std::vector<EdgeLoop> edgeLoops;
 
 		// Constructor to initialize an empty list of edge loops
