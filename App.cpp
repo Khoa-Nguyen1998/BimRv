@@ -19,6 +19,7 @@
 #include "Geometry/Entities/BmGFace.h"
 #include "RxObject.h"
 #include "App.h"
+#include "DataOutput.h"
 #include <Ed/EdCommandContext.h>
 #include <fstream>
 #include "Geometry/Entities/BmGFilter.h"
@@ -41,12 +42,79 @@
 #include <Ge/GeVector3d.h>
 #include <Ge/GePoint3d.h>
 #include <nlohmann/json.hpp>
+using json = nlohmann::json;
 
 class MyServices : public ExSystemServices, public OdExBimHostAppServices
 {
 protected:
 	ODRX_USING_HEAP_OPERATORS(ExSystemServices);
 };
+
+#pragma region json
+
+// Function to convert Model data to JSON
+json pointToJson(const DEMO::Point& point) {
+	return { {"x", point.x}, {"y", point.y}, {"z", point.z} };
+}
+
+json edgeToJson(const DEMO::Edge& edge) {
+	json edgeJson = json::array();
+	for (const auto& point : edge.points) {
+		edgeJson.push_back(pointToJson(point));
+	}
+	return edgeJson;
+}
+
+json edgeLoopToJson(const DEMO::EdgeLoop& edgeLoop) {
+	json edgeLoopJson = json::array();
+	for (const auto& edge : edgeLoop.edges) {
+		edgeLoopJson.push_back(edgeToJson(edge));
+	}
+	return edgeLoopJson;
+}
+
+json faceToJson(const DEMO::Face& face) {
+	json faceJson = json::array();
+	for (const auto& edgeLoop : face.edgeLoops) {
+		faceJson.push_back(edgeLoopToJson(edgeLoop));
+	}
+	return faceJson;
+}
+
+json geometryToJson(const DEMO::Geometry& geometry) {
+	json geometryJson = json::array();
+	for (const auto& face : geometry.faces) {
+		geometryJson.push_back(faceToJson(face));
+	}
+	return geometryJson;
+}
+
+json elementToJson(const DEMO::Element& element) {
+	return {
+		{"id", element.id},
+		{"category", element.category},
+		{"geometry", geometryToJson(element.geometry)}
+	};
+}
+
+json modelToJson(const DEMO::Model& model) {
+	json modelJson;
+	modelJson["elements"] = json::array();
+	for (const auto& element : model.elements) {
+		modelJson["elements"].push_back(elementToJson(element));
+	}
+	return modelJson;
+}
+
+void writeModelToJSONFile(DEMO::Model model, OdString  filename) {
+	json modelJson = modelToJson(model);
+
+	std::ofstream file(filename.c_str());
+	file << modelJson.dump(4);  // Dump with 4-space indentation
+	file.close();
+}
+
+#pragma endregion json
 
 void printBRepGeometry(const OdBmGeometryPtr& pGeometry)
 {
@@ -146,15 +214,19 @@ void dumpGGroup(OdBmGNodePtrArray& nodes) {
 	}//for (OdBmGNodePtrArray::const_iterator it = nodes.begin(); it != nodes.end(); ++it)
 }
 
-void GetDataGeometryJson(OdBmDatabasePtr pDb) {
+DEMO::Model GetDataGeometryJson(OdBmDatabasePtr pDb, OdInt32 id) {
+	DEMO::Model	model;
+
 	try
 	{
-		OdInt32 id = 196654;
 		OdDbHandle handleOneObj(id);
 		if (handleOneObj.isNull() != false) {
 			OdBmElementPtr pElement = pDb->getObjectId(handleOneObj).safeOpenObject();
-			//_____Get object's geometry_____//
 
+			DEMO::Element elemJson(1, "khoa");
+			model.elements.push_back(elemJson);
+
+			//_____Get object's geometry_____//
 			OdBmObjectPtr pGeom = pElement->getGeometry();
 			if (pGeom->isA() == OdBmGElement::desc())
 			{
@@ -168,10 +240,12 @@ void GetDataGeometryJson(OdBmDatabasePtr pDb) {
 			}
 		}
 	}
-	catch (const std::exception&)
+	catch (std::exception)
 	{
-		odPrintConsoleString(L"Exception: %ls\n");
+		DEMO::Element element(1, "error");
+		model.elements.push_back(element);
 	}
+	return model;
 }
 
 void ExportJsonFile(OdString pathOut) {
@@ -199,8 +273,16 @@ int main()
 	std::string pathIn, pathOut;
 	std::cout << "Please enter the path to the Revit file: ";
 	std::cin >> pathIn;
-	std::cout << "Please enter the path to the json output file: ";
-	std::cin >> pathOut;
+	std::cout << "The path to the Revit file: " + pathIn;
+
+	pathOut = pathIn;
+	size_t dotPosition = pathOut.find_last_of('.');
+	// Check if the dot was found and replace the extension
+	if (dotPosition != std::string::npos) {
+		pathOut.replace(dotPosition, std::string::npos, ".json");
+	}
+
+	std::cout << "\nThe path to the JSON output file: " + pathOut + "\n";
 
 	OdString inFile(pathIn.c_str());
 	OdString outFile(pathOut.c_str());
@@ -218,19 +300,23 @@ int main()
 
 		// Create a BimRv database and fills it with input file content
 		OdBmDatabasePtr pDb = svcs.readFile(inFile);
+		OdInt32 id = 179890;
 
-		//	GetDataGeometryJson(pDb);
+		DEMO::Model model = GetDataGeometryJson(pDb, id);
 
-			// Writes database to the output file
+		// Export model to JSON file
+		writeModelToJSONFile(model, outFile);
 	}
 	catch (OdError& err)
 	{
 		odPrintConsoleString(L"Error during copy test.rvt file: %ls\n", err.description().c_str());
 	}
-	ExportJsonFile(outFile);
+	//ExportJsonFile(outFile);
 
 	// Uninitializes Runtime Extension environment
 	odrxUninitialize();
 
+	std::string stop;
+	std::cin >> stop;
 	return 0;
 }
