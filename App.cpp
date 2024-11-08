@@ -40,6 +40,7 @@
 #include <Ge/GeSphere.h>
 #include <Ge/GeVector3d.h>
 #include <Ge/GePoint3d.h>
+#include <nlohmann/json.hpp>
 
 class MyServices : public ExSystemServices, public OdExBimHostAppServices
 {
@@ -173,9 +174,9 @@ void GetDataGeometryJson(OdBmDatabasePtr pDb) {
 	}
 }
 
-void ExportJsonFile() {
+void ExportJsonFile(OdString pathOut) {
 	// Create an output file stream (ofstream) to create and write to a file
-	std::ofstream outFile("C:\\Users\\Admin\\Downloads\\example.json");
+	std::ofstream outFile(pathOut.c_str());
 
 	// Check if the file was created successfully
 	if (outFile.is_open()) {
@@ -195,7 +196,14 @@ void ExportJsonFile() {
 
 int main()
 {
-	OdString inFile(L"C:\\Users\\Admin\\Downloads\\DemoIncubit.rvt");
+	std::string pathIn, pathOut;
+	std::cout << "Please enter the path to the Revit file: ";
+	std::cin >> pathIn;
+	std::cout << "Please enter the path to the json output file: ";
+	std::cin >> pathOut;
+
+	OdString inFile(pathIn.c_str());
+	OdString outFile(pathOut.c_str());
 
 	// Create a custom Services object
 	OdStaticRxObject < MyServices > svcs;
@@ -211,15 +219,15 @@ int main()
 		// Create a BimRv database and fills it with input file content
 		OdBmDatabasePtr pDb = svcs.readFile(inFile);
 
-		GetDataGeometryJson(pDb);
+		//	GetDataGeometryJson(pDb);
 
-		// Writes database to the output file
+			// Writes database to the output file
 	}
 	catch (OdError& err)
 	{
 		odPrintConsoleString(L"Error during copy test.rvt file: %ls\n", err.description().c_str());
 	}
-	ExportJsonFile();
+	ExportJsonFile(outFile);
 
 	// Uninitializes Runtime Extension environment
 	odrxUninitialize();
